@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # final_night
 
 A new Flutter project.
@@ -14,3 +15,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# Flutter_Project
+>>>>>>> 0582d8b4d2dd2a103708640eb8f433ff7f6d3fd2
