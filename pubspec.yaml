@@ -18,6 +18,11 @@ dependencies:
   firebase_auth: ^4.17.5
   flutter_staggered_animations: ^1.1.1
   http: ^0.13.6   # ✅ Correctly indented here
+  intl: ^0.20.2
+  firebase_messaging: ^14.9.4
+  flutter_local_notifications: ^18.0.1
+  firebase_storage: ^11.7.7
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

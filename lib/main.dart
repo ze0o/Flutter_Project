@@ -6,7 +6,11 @@ import 'package:flutter/services.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 import 'admin_home_page.dart';
+import 'admin_accident_reports_page.dart';
+import 'admin_insurance_management.dart';
+import 'vehicle_registration_page.dart';
 import 'theme/app_theme.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +32,10 @@ void main() async {
       measurementId: "G-KMNRLWK9X6",
     ),
   );
+
+  // Initialize notification service
+  await NotificationService.initialize();
+
   runApp(MyApp());
 }
 
@@ -39,6 +47,13 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       home: AuthWrapper(),
       debugShowCheckedModeBanner: false,
+      routes: {
+        '/admin_accident_reports': (context) => AdminAccidentReportsPage(),
+        '/admin_insurance_management':
+            (context) => AdminInsuranceManagementPage(),
+        '/vehicle_registration': (context) => VehicleRegistrationPage(),
+        // Removed the direct PaymentPage route since it requires parameters
+      },
     );
   }
 }
@@ -72,6 +87,9 @@ class AuthWrapper extends StatelessWidget {
             ),
           );
         } else if (snapshot.hasData) {
+          // Save device token for notifications
+          NotificationService.saveDeviceToken();
+
           return FutureBuilder<DocumentSnapshot>(
             future:
                 FirebaseFirestore.instance

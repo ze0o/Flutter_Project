@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 
 import 'login_page.dart';
 import 'admin_accident_reports_page.dart';
+import 'admin_insurance_management.dart';
+import 'theme/app_theme.dart';
 
 class AdminHomePage extends StatefulWidget {
   @override
@@ -18,6 +20,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       TextEditingController();
   final TextEditingController _newAdminPasswordController =
       TextEditingController();
+  int _selectedIndex = 0;
 
   void logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
@@ -113,7 +116,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Insurance Requests"),
+        title: Text("Admin Dashboard"),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(gradient: AppTheme.primaryGradient),
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.person_add),
@@ -121,116 +127,477 @@ class _AdminHomePageState extends State<AdminHomePage> {
             onPressed: () => _showCreateAdminDialog(),
           ),
           IconButton(
-            icon: Icon(Icons.report),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AdminAccidentReportsPage(),
-                ),
-              );
-            },
-          ),
-          IconButton(
             icon: Icon(Icons.exit_to_app),
             onPressed: () => logout(context),
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: _getSelectedScreen(),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: AppTheme.primaryColor,
+        unselectedItemColor: AppTheme.textLight,
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.policy), label: 'Insurance'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_problem),
+            label: 'Accidents',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.analytics),
+            label: 'Analytics',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _getSelectedScreen() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return AdminInsuranceManagementPage();
+      case 2:
+        return AdminAccidentReportsPage();
+      case 3:
+        return _buildAnalytics();
+      default:
+        return _buildDashboard();
+    }
+  }
+
+  Widget _buildDashboard() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Admin Dashboard',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Stats cards
+          Row(
+            children: [
+              _buildStatCard(
+                'Pending Requests',
+                _buildPendingRequestsCount(),
+                Icons.hourglass_empty,
+                Colors.orange,
+              ),
+              SizedBox(width: 16),
+              _buildStatCard(
+                'Active Policies',
+                _buildActivePoliciesCount(),
+                Icons.verified,
+                Colors.green,
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              _buildStatCard(
+                'Accident Reports',
+                _buildAccidentReportsCount(),
+                Icons.report_problem,
+                Colors.red,
+              ),
+              SizedBox(width: 16),
+              _buildStatCard(
+                'Total Vehicles',
+                _buildTotalVehiclesCount(),
+                Icons.directions_car,
+                Colors.blue,
+              ),
+            ],
+          ),
+
+          SizedBox(height: 32),
+          Text(
+            'Recent Insurance Requests',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          ),
+          SizedBox(height: 16),
+          _buildRecentRequests(),
+
+          SizedBox(height: 32),
+          Text(
+            'Recent Accident Reports',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          ),
+          SizedBox(height: 16),
+          _buildRecentAccidents(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+    String title,
+    Widget countWidget,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: color, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: TextStyle(color: AppTheme.textLight, fontSize: 14),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              countWidget,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingRequestsCount() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('insurance_requests')
+              .where('status', isEqualTo: 'Pending')
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Text(
+            '...',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          );
+        }
+
+        return Text(
+          '${snapshot.data!.docs.length}',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textDark,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivePoliciesCount() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('insurance_requests')
+              .where('status', isEqualTo: 'Approved')
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Text(
+            '...',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          );
+        }
+
+        return Text(
+          '${snapshot.data!.docs.length}',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textDark,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAccidentReportsCount() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance.collection('accident_reports').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Text(
+            '...',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          );
+        }
+
+        return Text(
+          '${snapshot.data!.docs.length}',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textDark,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTotalVehiclesCount() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('vehicles').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Text(
+            '...',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          );
+        }
+
+        return Text(
+          '${snapshot.data!.docs.length}',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textDark,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentRequests() {
+    return Container(
+      height: 200,
+      child: StreamBuilder<QuerySnapshot>(
         stream:
             FirebaseFirestore.instance
                 .collection('insurance_requests')
+                .orderBy('timestamp', descending: true)
+                .limit(5)
                 .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return Center(child: CircularProgressIndicator());
+          }
 
-          final docs = snapshot.data!.docs;
+          final requests = snapshot.data!.docs;
 
-          return AnimatedList(
-            key: _listKey,
-            initialItemCount: docs.length,
-            itemBuilder: (context, index, animation) {
-              final request = docs[index];
-              final status = request['status'] ?? '';
-              final approved =
-                  request.data().toString().contains('adminApproved')
-                      ? request['adminApproved']
-                      : false;
+          if (requests.isEmpty) {
+            return Center(child: Text('No insurance requests found'));
+          }
 
-              return SizeTransition(
-                sizeFactor: animation,
-                child: FutureBuilder<DocumentSnapshot>(
-                  future:
-                      FirebaseFirestore.instance
-                          .collection('vehicles')
-                          .doc(request['vehicleId'])
-                          .get(),
-                  builder: (context, vehicleSnapshot) {
-                    if (!vehicleSnapshot.hasData) {
-                      return ListTile(title: Text("Loading vehicle info..."));
-                    }
+          return ListView.builder(
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: requests.length,
+            itemBuilder: (context, index) {
+              final request = requests[index];
+              final data = request.data() as Map<String, dynamic>;
+              final status = data['status'] as String;
 
-                    final vehicleData =
-                        vehicleSnapshot.data!.data() as Map<String, dynamic>?;
-
-                    if (vehicleData == null) {
-                      return ListTile(title: Text("Vehicle info not found"));
-                    }
-
-                    final model = vehicleData['model'] ?? "Unknown";
-                    final regNo =
-                        vehicleData['registrationNumber'] ?? "Unknown";
-
-                    return Card(
-                      margin: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      child: ListTile(
-                        title: Text("Vehicle: $model (Reg: $regNo)"),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Depreciated Value: \$${request['depreciatedValue'].toStringAsFixed(2)}",
-                            ),
-                            if (status.isNotEmpty) Text("Status: $status"),
-                            if (status == "Paid" && approved == false)
-                              ElevatedButton(
-                                onPressed: () async {
-                                  await FirebaseFirestore.instance
-                                      .collection('insurance_requests')
-                                      .doc(request.id)
-                                      .update({
-                                        'adminApproved': true,
-                                        'status': 'Approved',
-                                      });
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text("Policy approved.")),
-                                  );
-                                },
-                                child: Text("Approve Policy"),
-                              ),
-                          ],
-                        ),
-                        trailing: ElevatedButton(
-                          child: Text("Create Offers"),
-                          onPressed: () {
-                            _showOfferDialog(
-                              context,
-                              request.id,
-                              request['depreciatedValue'],
-                            );
-                          },
-                        ),
-                      ),
+              return FutureBuilder<DocumentSnapshot>(
+                future:
+                    FirebaseFirestore.instance
+                        .collection('vehicles')
+                        .doc(data['vehicleId'])
+                        .get(),
+                builder: (context, vehicleSnapshot) {
+                  if (!vehicleSnapshot.hasData) {
+                    return ListTile(
+                      title: Text('Loading...'),
+                      subtitle: LinearProgressIndicator(),
                     );
-                  },
-                ),
+                  }
+
+                  final vehicleData =
+                      vehicleSnapshot.data!.data() as Map<String, dynamic>?;
+                  if (vehicleData == null) {
+                    return SizedBox();
+                  }
+
+                  final model = vehicleData['model'] as String;
+                  final regNumber = vehicleData['registrationNumber'] as String;
+
+                  return ListTile(
+                    leading: Icon(Icons.directions_car),
+                    title: Text('$model ($regNumber)'),
+                    subtitle: Text('Status: $status'),
+                    trailing: Icon(Icons.chevron_right),
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 1; // Switch to Insurance tab
+                      });
+                    },
+                  );
+                },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRecentAccidents() {
+    return Container(
+      height: 200,
+      child: StreamBuilder<QuerySnapshot>(
+        stream:
+            FirebaseFirestore.instance
+                .collection('accident_reports')
+                .orderBy('timestamp', descending: true)
+                .limit(5)
+                .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          final reports = snapshot.data!.docs;
+
+          if (reports.isEmpty) {
+            return Center(child: Text('No accident reports found'));
+          }
+
+          return ListView.builder(
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: reports.length,
+            itemBuilder: (context, index) {
+              final report = reports[index];
+              final data = report.data() as Map<String, dynamic>;
+              final damageCost = data['damageCost'] as double;
+              final isHeavy = data['heavyDamage'] as bool? ?? false;
+
+              return FutureBuilder<DocumentSnapshot>(
+                future:
+                    FirebaseFirestore.instance
+                        .collection('vehicles')
+                        .doc(data['vehicleId'])
+                        .get(),
+                builder: (context, vehicleSnapshot) {
+                  if (!vehicleSnapshot.hasData) {
+                    return ListTile(
+                      title: Text('Loading...'),
+                      subtitle: LinearProgressIndicator(),
+                    );
+                  }
+
+                  final vehicleData =
+                      vehicleSnapshot.data!.data() as Map<String, dynamic>?;
+                  if (vehicleData == null) {
+                    return SizedBox();
+                  }
+
+                  final model = vehicleData['model'] as String;
+                  final regNumber = vehicleData['registrationNumber'] as String;
+
+                  return ListTile(
+                    leading: Icon(
+                      Icons.report_problem,
+                      color: isHeavy ? Colors.red : Colors.orange,
+                    ),
+                    title: Text('$model ($regNumber)'),
+                    subtitle: Text(
+                      'Damage: \$${damageCost.toStringAsFixed(2)}',
+                    ),
+                    trailing: Icon(Icons.chevron_right),
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 2; // Switch to Accidents tab
+                      });
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAnalytics() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.analytics,
+            size: 80,
+            color: AppTheme.primaryColor.withOpacity(0.5),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Analytics Dashboard',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textDark,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Coming soon in a future update',
+            style: TextStyle(color: AppTheme.textLight, fontSize: 16),
+          ),
+          SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('This feature is under development')),
+              );
+            },
+            child: Text('Generate Reports'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
