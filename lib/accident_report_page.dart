@@ -29,7 +29,7 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
 
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
-  List<File> _accidentImages = [];
+  List<dynamic> _accidentImages = []; // Can hold File objects or XFile objects
   final ImagePicker _picker = ImagePicker();
 
   // Vehicle data
@@ -108,21 +108,31 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
     }
   }
 
+  bool get _isWeb => kIsWeb;
+
   Future<void> _pickImages() async {
     try {
-      final List<XFile>? pickedImages = await _picker.pickMultiImage();
-      if (pickedImages != null && pickedImages.isNotEmpty) {
+      final List<XFile>? images = await _picker.pickMultiImage();
+      if (images != null && images.isNotEmpty) {
         setState(() {
-          _accidentImages.addAll(
-            pickedImages.map((xFile) => File(xFile.path)).toList(),
-          );
+          if (_isWeb) {
+            // For web, just store the XFile objects directly
+            _accidentImages.addAll(images);
+          } else {
+            // For mobile, convert to File objects
+            _accidentImages.addAll(
+              images.map((xFile) => File(xFile.path)).toList(),
+            );
+          }
         });
+        
+        print('Added ${images.length} images. Total: ${_accidentImages.length}');
       }
     } catch (e) {
       print('Error picking images: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error selecting images: ${e.toString()}'),
+          content: Text('Error picking images: ${e.toString()}'),
           backgroundColor: AppTheme.errorRed,
         ),
       );
@@ -140,15 +150,32 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
       return;
     }
 
-    double repairCost = double.parse(_repairCostController.text);
-    double damagePercentage = (repairCost / _vehicleValue) * 100;
+    // Add validation to ensure the text can be parsed as a double
+    double repairCost;
+    try {
+      repairCost = double.parse(_repairCostController.text);
+    } catch (e) {
+      print('Invalid repair cost format: ${_repairCostController.text}');
+      // Set a default value or show an error
+      repairCost = 0.0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a valid repair cost'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+
+    double damagePercentage = (_vehicleValue > 0) 
+        ? (repairCost / _vehicleValue) * 100 
+        : 0.0;
     bool isHeavyDamage = damagePercentage > 40;
+    
     setState(() {
       _repairCost = repairCost;
       _damagePercentage = damagePercentage;
       _isHeavyDamage = isHeavyDamage;
-      _newConsumptionRate =
-          isHeavyDamage ? 0.15 : 0.10; // 15% if heavy damage, 10% otherwise
+      _newConsumptionRate = isHeavyDamage ? 0.15 : 0.10; // 15% if heavy damage, 10% otherwise
     });
   }
 
@@ -176,9 +203,8 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
       // Calculate damage before submission
       _calculateDamage();
 
-      // For simplicity, let's skip image upload for now
-      // This will allow us to test if the rest of the form submission works
-      List<String> imageUrls = ["https://placeholder.com/image1.jpg"];
+      // TEMPORARY: Use placeholder URLs instead of actual uploads
+      List<String> imageUrls = ["https://via.placeholder.com/150"];
 
       // Save accident report to Firestore
       final reportRef = await FirebaseFirestore.instance.collection('accident_reports').add({
@@ -206,18 +232,6 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
               'consumptionRate': _newConsumptionRate,
               'hadAccident': true,
             });
-      }
-
-      // Send notification to admin
-      try {
-        await NotificationService.sendAdminNotification(
-          'New Accident Report',
-          'Accident report for $_vehicleModel ($_vehicleReg) submitted',
-          {'type': 'accident', 'reportId': reportRef.id},
-        );
-      } catch (e) {
-        print('Error sending notification: $e');
-        // Continue even if notification fails
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -533,17 +547,67 @@ class _AccidentReportPageState extends State<AccidentReportPage> {
                     scrollDirection: Axis.horizontal,
                     itemCount: _accidentImages.length,
                     itemBuilder: (context, index) {
+                      Widget imageWidget;
+                      
+                      if (_isWeb) {
+                        // For web, use Image.network with XFile.path
+                        final item = _accidentImages[index];
+                        if (item is XFile) {
+                          imageWidget = Image.network(
+                            item.path,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Error loading web image: $error');
+                              return Container(
+                                color: Colors.grey[300],
+                                child: Icon(Icons.broken_image, size: 40),
+                              );
+                            },
+                          );
+                        } else {
+                          // Fallback for web
+                          imageWidget = Container(
+                            color: Colors.grey[300],
+                            child: Icon(Icons.image, size: 40, color: Colors.grey[600]),
+                          );
+                        }
+                      } else {
+                        // For mobile platforms
+                        final item = _accidentImages[index];
+                        if (item is File) {
+                          imageWidget = Image.file(
+                            item,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Error loading image: $error');
+                              return Container(
+                                color: Colors.grey[300],
+                                child: Icon(Icons.broken_image, size: 40),
+                              );
+                            },
+                          );
+                        } else {
+                          // Fallback for mobile
+                          imageWidget = Container(
+                            color: Colors.grey[300],
+                            child: Icon(Icons.image, size: 40, color: Colors.grey[600]),
+                          );
+                        }
+                      }
+                      
                       return Stack(
                         children: [
                           Container(
                             margin: EdgeInsets.only(right: 8),
                             width: 120,
+                            height: 120,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              image: DecorationImage(
-                                image: FileImage(_accidentImages[index]),
-                                fit: BoxFit.cover,
-                              ),
+                              border: Border.all(color: Colors.grey),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: imageWidget,
                             ),
                           ),
                           Positioned(
